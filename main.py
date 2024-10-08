@@ -61,7 +61,7 @@ async def wrong_answer(callback: types.CallbackQuery):
     await answer(callback, 'wrong_answer')
 
 
-async def answer(callback: types.CallbackQuery, status: str):
+async def answer(callback: types.CallbackQuery, answer_status: str):
     await callback.bot.edit_message_reply_markup(
         chat_id=callback.from_user.id,
         message_id=callback.message.message_id,
@@ -69,7 +69,7 @@ async def answer(callback: types.CallbackQuery, status: str):
     )
 
     current_question_index = CURRENT_SCORE.get(callback.from_user.id, 0)
-    if status == 'right_answer':
+    if answer_status == 'right_answer':
         await callback.message.answer("Верно!")
     else:
         # Получение текущего вопроса из словаря состояний пользователя
