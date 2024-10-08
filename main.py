@@ -1,6 +1,6 @@
 import aiosqlite
 import asyncio
-import logging
+# import logging
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters.command import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
@@ -8,12 +8,13 @@ from aiogram import F
 
 from dotenv import load_dotenv
 from os import getenv
+import csv
 
 
 load_dotenv()
 
 # Включаем логирование, чтобы не пропустить важные сообщения
-logging.basicConfig(level=logging.INFO)
+# logging.basicConfig(level=logging.INFO)
 
 # Токен, который вы получили от BotFather
 API_TOKEN = getenv('API_TOKEN')
@@ -25,6 +26,12 @@ dp = Dispatcher()
 
 # Зададим имя базы данных
 DB_NAME = 'quiz_bot.db'
+
+# переменная для хранения текущих результатов
+CURRENT_SCORE = dict()
+
+SCORE_FILENAME = 'quiz_state.csv'
+
 
 # Структура квиза
 quiz_data = [
@@ -128,14 +135,24 @@ async def get_quiz_index(user_id):
     async with aiosqlite.connect(DB_NAME) as db:
         # Получаем запись для заданного пользователя
         async with db.execute(
-            'SELECT question_index FROM quiz_state WHERE user_id = (?)', (user_id, )
+            f'SELECT question_index FROM quiz_state WHERE user_id = {user_id}'
         ) as cursor:
             # Возвращаем результат
             results = await cursor.fetchone()
-            if results is not None:
-                return results[0]
-            else:
-                return 0
+            return results[0] if results else 0
+
+
+# TODO: переписать в json.dump / json.loads, а csv оставить для списка вопросов
+async def get_quiz_index_csv():
+    """
+    header - user_id
+    value - question_index
+    """
+    async with open(SCORE_FILENAME, newline='') as file:
+        reader = csv.DictReader(file)
+        current_score = next(reader)
+        for user_id, question_index in current_score.items():
+            CURRENT_SCORE[int(user_id)] = int(question_index)
 
 
 async def update_quiz_index(user_id, index):
@@ -147,18 +164,29 @@ async def update_quiz_index(user_id, index):
         # Вставляем новую запись или заменяем ее,
         # если с данным user_id уже существует
         await db.execute(
-            'INSERT OR REPLACE INTO quiz_state (user_id, question_index) VALUES (?, ?)',
-            (user_id, index)
+            'INSERT OR REPLACE INTO quiz_state (user_id, question_index) '
+            f'VALUES ({user_id}, {index})',
         )
         # Сохраняем изменения
         await db.commit()
+
+
+async def update_quiz_index_csv():
+    """
+    header - user_id
+    value - question_index
+    """
+    async with open(SCORE_FILENAME, 'w', encoding='utf-8', newline='') as file:
+        writer = csv.DictWriter(file, fieldnames=sorted(CURRENT_SCORE.keys()))
+        writer.writeheader()
+        writer.writerow(CURRENT_SCORE)
 
 
 @dp.message(F.text == "Начать игру")
 @dp.message(Command("quiz"))
 async def cmd_quiz(message: types.Message):
     """Хэндлер на команду /quiz"""
-    await message.answer(f"Давайте начнем квиз!")
+    await message.answer("Давайте начнем квиз!")
     await new_quiz(message)
 
 
