@@ -53,41 +53,31 @@ def generate_options_keyboard(answer_options, right_answer):
 
 @dp.callback_query(F.data == "right_answer")
 async def right_answer(callback: types.CallbackQuery):
-    await callback.bot.edit_message_reply_markup(
-        chat_id=callback.from_user.id,
-        message_id=callback.message.message_id,
-        reply_markup=None
-    )
-    await callback.message.answer("Верно!")
-    current_question_index = CURRENT_SCORE.get(callback.from_user.id, 0)
-
-    # Обновление номера текущего вопроса в базе данных
-    current_question_index += 1
-    CURRENT_SCORE[callback.from_user.id] = current_question_index
-    await update_quiz_index()
-    if current_question_index < len(QUIZ_DATA):
-        await get_question(callback.message, callback.from_user.id)
-    else:
-        await callback.message.answer(
-            "Это был последний вопрос. Квиз завершен!"
-        )
+    await answer(callback, 'right_answer')
 
 
 @dp.callback_query(F.data == "wrong_answer")
 async def wrong_answer(callback: types.CallbackQuery):
+    await answer(callback, 'wrong_answer')
+
+
+async def answer(callback: types.CallbackQuery, status: str):
     await callback.bot.edit_message_reply_markup(
         chat_id=callback.from_user.id,
         message_id=callback.message.message_id,
         reply_markup=None
     )
 
-    # Получение текущего вопроса из словаря состояний пользователя
     current_question_index = CURRENT_SCORE.get(callback.from_user.id, 0)
-    correct_option = QUIZ_DATA[current_question_index]['correct_option']
-    await callback.message.answer(
-        "Неправильно. Правильный ответ: "
-        f"{QUIZ_DATA[current_question_index]['options'][correct_option]}"
-    )
+    if status == 'right_answer':
+        await callback.message.answer("Верно!")
+    else:
+        # Получение текущего вопроса из словаря состояний пользователя
+        correct_option = QUIZ_DATA[current_question_index]['correct_option']
+        await callback.message.answer(
+            "Неправильно. Правильный ответ: "
+            f"{QUIZ_DATA[current_question_index]['options'][correct_option]}"
+        )
 
     # Обновление номера текущего вопроса в базе данных
     current_question_index += 1
@@ -133,7 +123,7 @@ async def new_quiz(message):
 
 async def update_quiz_index():
     """
-    header - user_id
+    key - user_id
     value - question_index
     """
     # TODO: async with file
