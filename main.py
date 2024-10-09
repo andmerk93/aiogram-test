@@ -22,6 +22,7 @@ API_TOKEN = getenv('API_TOKEN')
 
 # Объект бота
 bot = Bot(token=API_TOKEN)
+
 # Диспетчер
 dp = Dispatcher()
 
@@ -34,60 +35,57 @@ QUSETIONS_FILENAME = getenv('QUSETIONS_FILENAME')
 QUIZ_DATA = []
 
 
-def generate_options_keyboard(answer_options, right_answer):
+def generate_options_keyboard(answer_options):
     builder = InlineKeyboardBuilder()
-    for option in answer_options:
+    for num, option in enumerate(answer_options):
         builder.add(
             types.InlineKeyboardButton(
                 text=option,
-                callback_data=(
-                    "right_answer"
-                    if option == right_answer
-                    else "wrong_answer"
-                )
+                callback_data=str(num)
             )
         )
     builder.adjust(1)
     return builder.as_markup()
 
 
-@dp.callback_query(F.data == "right_answer")
-async def right_answer(callback: types.CallbackQuery):
-    await answer(callback, 'right_answer')
-
-
-@dp.callback_query(F.data == "wrong_answer")
-async def wrong_answer(callback: types.CallbackQuery):
-    await answer(callback, 'wrong_answer')
-
-
-async def answer(callback: types.CallbackQuery, answer_status: str):
+@dp.callback_query(F.data.in_('0123'))
+async def answer(callback: types.CallbackQuery):
     await callback.bot.edit_message_reply_markup(
         chat_id=callback.from_user.id,
         message_id=callback.message.message_id,
         reply_markup=None
     )
 
-    current_question_index = CURRENT_SCORE.get(callback.from_user.id, 0)
-    if answer_status == 'right_answer':
-        await callback.message.answer("Верно!")
+    # Получение текущего вопроса из словаря состояний пользователя
+    current_question_id = CURRENT_SCORE.get(f'{callback.from_user.id}_level', 0)
+    current_answer_id = int(callback.data)
+    current_answer = QUIZ_DATA[current_question_id]['options'][current_answer_id]
+    correct_anwser_id = QUIZ_DATA[current_question_id]['correct_option']
+    correct_answer = QUIZ_DATA[current_question_id]['options'][correct_anwser_id]
+
+    if current_answer_id == correct_anwser_id:
+        if CURRENT_SCORE.get(f'{callback.from_user.id}_score', False):
+            CURRENT_SCORE[f'{callback.from_user.id}_score'] += 1
+        else:
+            CURRENT_SCORE[f'{callback.from_user.id}_score'] = 1
+        await callback.message.answer(f"Вы ответили {correct_answer}. Верно!")
     else:
-        # Получение текущего вопроса из словаря состояний пользователя
-        correct_option = QUIZ_DATA[current_question_index]['correct_option']
         await callback.message.answer(
-            "Неправильно. Правильный ответ: "
-            f"{QUIZ_DATA[current_question_index]['options'][correct_option]}"
+            f"Вы ответили {current_answer}. Неправильно \n"
+            f"Правильный ответ: {correct_answer}"
         )
 
     # Обновление номера текущего вопроса в базе данных
-    current_question_index += 1
-    CURRENT_SCORE[callback.from_user.id] = current_question_index
+    current_question_id += 1
+    CURRENT_SCORE[f'{callback.from_user.id}_level'] = current_question_id
     await update_quiz_index()
-    if current_question_index < len(QUIZ_DATA):
+    if current_question_id < len(QUIZ_DATA):
         await get_question(callback.message, callback.from_user.id)
     else:
+        final_score = CURRENT_SCORE[f'{callback.from_user.id}_level']
         await callback.message.answer(
-            "Это был последний вопрос. Квиз завершен!"
+            "Это был последний вопрос. Квиз завершен! \n"
+            f"Вы набрали {final_score} баллов"
         )
 
 
@@ -104,10 +102,9 @@ async def cmd_start(message: types.Message):
 
 async def get_question(message, user_id):
     """Получение текущего вопроса из словаря состояний пользователя"""
-    current_question_index = CURRENT_SCORE.get(user_id, 0)
-    correct_index = QUIZ_DATA[current_question_index]['correct_option']
+    current_question_index = CURRENT_SCORE.get(f'{user_id}_level', 0)
     opts = QUIZ_DATA[current_question_index]['options']
-    kb = generate_options_keyboard(opts, opts[correct_index])
+    kb = generate_options_keyboard(opts)
     await message.answer(
         f"{QUIZ_DATA[current_question_index]['question']}",
         reply_markup=kb
@@ -116,17 +113,12 @@ async def get_question(message, user_id):
 
 async def new_quiz(message):
     user_id = message.from_user.id
-    CURRENT_SCORE[user_id] = 0
+    CURRENT_SCORE[f'{user_id}_level'] = 0
     await update_quiz_index()
     await get_question(message, user_id)
 
 
 async def update_quiz_index():
-    """
-    key - user_id
-    value - question_index
-    """
-    # TODO: async with file
     with open(SCORE_FILENAME, 'w') as file:
         json.dump(CURRENT_SCORE, file)
 
