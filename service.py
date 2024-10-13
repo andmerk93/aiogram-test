@@ -1,7 +1,7 @@
 import asyncio
-from os.path import exists
+# from os.path import exists
 from os import getenv
-import json
+# import json
 # import logging
 
 from aiogram import Bot, Dispatcher, types
@@ -10,6 +10,8 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 from aiogram import F
 
 from dotenv import load_dotenv
+
+from crud import get_quiz_data, get_quiz_state, set_quiz_state, Session
 
 
 load_dotenv()
@@ -26,11 +28,11 @@ bot = Bot(token=API_TOKEN)
 # Диспетчер
 dp = Dispatcher()
 
-SCORE_FILENAME = getenv('SCORE_FILENAME')
+# SCORE_FILENAME = getenv('SCORE_FILENAME')
 # переменная для хранения текущих результатов
 CURRENT_SCORE = dict()
 
-QUSETIONS_FILENAME = getenv('QUSETIONS_FILENAME')
+# QUSETIONS_FILENAME = getenv('QUSETIONS_FILENAME')
 # Структура квиза
 QUIZ_DATA = []
 
@@ -119,8 +121,9 @@ async def new_quiz(message):
 
 
 async def update_quiz_index():
-    with open(SCORE_FILENAME, 'w') as file:
-        json.dump(CURRENT_SCORE, file)
+    # with open(SCORE_FILENAME, 'w') as file:
+    #     json.dump(CURRENT_SCORE, file)
+    set_quiz_state(Session, CURRENT_SCORE)
 
 
 @dp.message(F.text == "Начать игру")
@@ -132,14 +135,17 @@ async def cmd_quiz(message: types.Message):
 
 
 async def main():
-    if exists(SCORE_FILENAME):
-        global CURRENT_SCORE
-        with open(SCORE_FILENAME) as file:
-            CURRENT_SCORE = json.load(file)
+    global CURRENT_SCORE
+    CURRENT_SCORE = get_quiz_state(Session)
+    # if exists(SCORE_FILENAME):
+    #     global CURRENT_SCORE
+    #     with open(SCORE_FILENAME) as file:
+    #         CURRENT_SCORE = json.load(file)
 
     global QUIZ_DATA
-    with open(QUSETIONS_FILENAME, encoding='utf-8') as file:
-        QUIZ_DATA = json.load(file)
+    QUIZ_DATA = get_quiz_data(Session)
+    # with open(QUSETIONS_FILENAME, encoding='utf-8') as file:
+    #     QUIZ_DATA = json.load(file)
 
     # Запуск процесса поллинга новых апдейтов
     await dp.start_polling(bot)

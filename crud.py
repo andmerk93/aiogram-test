@@ -68,6 +68,33 @@ def get_quiz_data(Session):
     ]
 
 
+def get_quiz_state(Session):
+    scores_dict = dict()
+    with Session() as session:
+        for score in session.scalars(select(State)).all():
+            scores_dict[f'{score.user_id}_score'] = score.score
+            scores_dict[f'{score.user_id}_level'] = score.level
+    return scores_dict
+
+
+def set_quiz_state(Session, quiz_state):
+    temp_quiz_state = dict()
+    for key, val in quiz_state.items():
+        id, param = key.split('_')
+        if id not in temp_quiz_state:
+            temp_quiz_state[id] = dict()
+        temp_quiz_state[id][param] = val
+    with Session.begin() as session:
+        for id, params in temp_quiz_state.items():
+            session.merge(
+                State(
+                    user_id=id,
+                    level=params['level'],
+                    score=params['score'],
+                )
+            )
+
+
 if __name__ == '__main__':
     # create tables for first run
     # Base.metadata.create_all(engine)
