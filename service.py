@@ -1,7 +1,5 @@
 import asyncio
-# from os.path import exists
 from os import getenv
-# import json
 # import logging
 
 from aiogram import Bot, Dispatcher, types
@@ -11,7 +9,8 @@ from aiogram import F
 
 from dotenv import load_dotenv
 
-from crud import get_quiz_data, get_quiz_state, set_quiz_state, Session
+from crud import Session, Score, get_quiz_data
+from crud import get_score, set_score
 
 
 load_dotenv()
@@ -28,11 +27,6 @@ bot = Bot(token=API_TOKEN)
 # Диспетчер
 dp = Dispatcher()
 
-# SCORE_FILENAME = getenv('SCORE_FILENAME')
-# переменная для хранения текущих результатов
-CURRENT_SCORE = dict()
-
-# QUSETIONS_FILENAME = getenv('QUSETIONS_FILENAME')
 # Структура квиза
 QUIZ_DATA = []
 
@@ -59,17 +53,15 @@ async def answer(callback: types.CallbackQuery):
     )
 
     # Получение текущего вопроса из словаря состояний пользователя
-    current_question_id = CURRENT_SCORE.get(f'{callback.from_user.id}_level', 0)
+    current_score = get_score(Session, user_id=callback.from_user.id)
+    current_question_id = current_score.level
     current_answer_id = int(callback.data)
     current_answer = QUIZ_DATA[current_question_id]['options'][current_answer_id]
     correct_anwser_id = QUIZ_DATA[current_question_id]['correct_option']
     correct_answer = QUIZ_DATA[current_question_id]['options'][correct_anwser_id]
 
     if current_answer_id == correct_anwser_id:
-        if CURRENT_SCORE.get(f'{callback.from_user.id}_score', False):
-            CURRENT_SCORE[f'{callback.from_user.id}_score'] += 1
-        else:
-            CURRENT_SCORE[f'{callback.from_user.id}_score'] = 1
+        current_score.score += 1
         await callback.message.answer(f"Вы ответили {correct_answer}. Верно!")
     else:
         await callback.message.answer(
@@ -78,16 +70,14 @@ async def answer(callback: types.CallbackQuery):
         )
 
     # Обновление номера текущего вопроса в базе данных
-    current_question_id += 1
-    CURRENT_SCORE[f'{callback.from_user.id}_level'] = current_question_id
-    await update_quiz_index()
-    if current_question_id < len(QUIZ_DATA):
+    current_score.level += 1
+    set_score(Session, current_score)
+    if current_score.level < len(QUIZ_DATA):
         await get_question(callback.message, callback.from_user.id)
     else:
-        final_score = CURRENT_SCORE[f'{callback.from_user.id}_level']
         await callback.message.answer(
             "Это был последний вопрос. Квиз завершен! \n"
-            f"Вы набрали {final_score} баллов"
+            f"Вы набрали {current_score.score} баллов"
         )
 
 
@@ -104,7 +94,7 @@ async def cmd_start(message: types.Message):
 
 async def get_question(message, user_id):
     """Получение текущего вопроса из словаря состояний пользователя"""
-    current_question_index = CURRENT_SCORE.get(f'{user_id}_level', 0)
+    current_question_index = get_score(Session, user_id).level
     opts = QUIZ_DATA[current_question_index]['options']
     kb = generate_options_keyboard(opts)
     await message.answer(
@@ -115,15 +105,12 @@ async def get_question(message, user_id):
 
 async def new_quiz(message):
     user_id = message.from_user.id
-    CURRENT_SCORE[f'{user_id}_level'] = 0
-    await update_quiz_index()
+    user_state = Score(
+        user_id=user_id,
+        level=0,
+    )
+    set_score(Session, user_state)
     await get_question(message, user_id)
-
-
-async def update_quiz_index():
-    # with open(SCORE_FILENAME, 'w') as file:
-    #     json.dump(CURRENT_SCORE, file)
-    set_quiz_state(Session, CURRENT_SCORE)
 
 
 @dp.message(F.text == "Начать игру")
@@ -135,17 +122,8 @@ async def cmd_quiz(message: types.Message):
 
 
 async def main():
-    global CURRENT_SCORE
-    CURRENT_SCORE = get_quiz_state(Session)
-    # if exists(SCORE_FILENAME):
-    #     global CURRENT_SCORE
-    #     with open(SCORE_FILENAME) as file:
-    #         CURRENT_SCORE = json.load(file)
-
     global QUIZ_DATA
     QUIZ_DATA = get_quiz_data(Session)
-    # with open(QUSETIONS_FILENAME, encoding='utf-8') as file:
-    #     QUIZ_DATA = json.load(file)
 
     # Запуск процесса поллинга новых апдейтов
     await dp.start_polling(bot)

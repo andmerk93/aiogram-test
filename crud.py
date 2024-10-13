@@ -25,12 +25,12 @@ class Question(Base):
     correct_id = Column(Integer)
 
 
-class State(Base):
-    __tablename__ = 'quiz_state'
+class Score(Base):
+    __tablename__ = 'quiz_score'
 
     user_id = Column(Integer, primary_key=True)
-    level = Column(Integer)
-    score = Column(Integer)
+    level = Column(Integer, default=0)
+    score = Column(Integer, default=0)
 
 
 def fill_questions(Session):
@@ -68,31 +68,13 @@ def get_quiz_data(Session):
     ]
 
 
-def get_quiz_state(Session):
-    scores_dict = dict()
-    with Session() as session:
-        for score in session.scalars(select(State)).all():
-            scores_dict[f'{score.user_id}_score'] = score.score
-            scores_dict[f'{score.user_id}_level'] = score.level
-    return scores_dict
+def get_score(Session, user_id):
+    return Session().get(Score, user_id)
 
 
-def set_quiz_state(Session, quiz_state):
-    temp_quiz_state = dict()
-    for key, val in quiz_state.items():
-        id, param = key.split('_')
-        if id not in temp_quiz_state:
-            temp_quiz_state[id] = dict()
-        temp_quiz_state[id][param] = val
+def set_score(Session, user_score):
     with Session.begin() as session:
-        for id, params in temp_quiz_state.items():
-            session.merge(
-                State(
-                    user_id=id,
-                    level=params['level'],
-                    score=params['score'],
-                )
-            )
+        session.merge(user_score)
 
 
 if __name__ == '__main__':
@@ -100,5 +82,3 @@ if __name__ == '__main__':
     # Base.metadata.create_all(engine)
     # fill_questions(Session)
     print(get_quiz_data(Session), sep='\n')
-
-# TODO read_question, upsert_state
