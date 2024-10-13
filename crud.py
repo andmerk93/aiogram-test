@@ -5,11 +5,11 @@ from dotenv import load_dotenv
 
 # from sqlalchemy.orm import Session
 from sqlalchemy.orm import declarative_base, sessionmaker
-from sqlalchemy import Column, Integer, Unicode, create_engine, text
+from sqlalchemy import Column, Integer, Unicode, create_engine, select
 
 load_dotenv()
 Base = declarative_base()
-engine = create_engine(getenv('DB_ENGINE'))
+engine = create_engine(getenv('DB_ENGINE'), echo=False)
 Session = sessionmaker(engine)
 
 
@@ -48,46 +48,30 @@ def fill_questions(Session):
                 correct_id=current_question['correct_option']
             )
             session.add(db_question)
-        # session.commit()
 
 
-# def create_tables(Session):
-#     with Session.begin() as session:
-#             session.add(state_query)
-#             session.add(questions_query)
-
-def create_tables_from_text(engine):
-    state_query = '''
-        CREATE TABLE IF NOT EXISTS "quiz_state" (
-        "user_id"	INTEGER,
-        "level"	INTEGER,
-        "score"	INTEGER,
-        PRIMARY KEY("user_id" AUTOINCREMENT)
-        );
-    '''
-
-    questions_query = '''
-        CREATE TABLE IF NOT EXISTS "quiz_question" (
-        "id"	INTEGER,
-        "question"	TEXT,
-        "answer0"	TEXT,
-        "answer1"	TEXT,
-        "answer2"	TEXT,
-        "answer3"	TEXT,
-        "correct_id"	INTEGER,
-        PRIMARY KEY("id" AUTOINCREMENT)
-        );
-    '''
-    
-
-    with engine.connect() as conn:
-        conn.execute(text(state_query))
-        conn.execute(text(questions_query))
+def get_quiz_data(Session):
+    with Session() as session:
+        questions = session.scalars(select(Question)).all()
+    return [
+        dict(
+            question=current_question.question,
+            options=[
+                current_question.answer0,
+                current_question.answer1,
+                current_question.answer2,
+                current_question.answer3,
+            ],
+            correct_option=current_question.correct_id
+        )
+        for current_question in questions
+    ]
 
 
 if __name__ == '__main__':
-    create_tables_from_text(engine)
-    # create_tables(engine)
-    fill_questions(Session)
+    # create tables for first run
+    # Base.metadata.create_all(engine)
+    # fill_questions(Session)
+    print(get_quiz_data(Session), sep='\n')
 
 # TODO read_question, upsert_state
