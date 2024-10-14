@@ -48,10 +48,10 @@ async def answer(callback: types.CallbackQuery):
         reply_markup=None
     )
 
-    current_score = Score.get_score(Session, user_id=callback.from_user.id)
+    current_score = await Score.get_score(Session, user_id=callback.from_user.id)
 
     current_question_id = current_score.level + 1
-    current_question = Question.get_question(Session, current_question_id)
+    current_question = await Question.get_question(Session, current_question_id)
 
     current_answer_id = int(callback.data)
     current_answer = getattr(current_question, f'answer{current_answer_id}')
@@ -70,7 +70,7 @@ async def answer(callback: types.CallbackQuery):
 
     # Обновление номера текущего вопроса
     current_score.level += 1
-    current_score.set_score(Session)
+    await current_score.set_score(Session)
     if current_score.level < TOTAL_QUIZ_QUESTIONS:
         await get_question(callback.message, current_score.level)
     else:
@@ -93,7 +93,7 @@ async def cmd_start(message: types.Message):
 
 async def get_question(message, current_index):
     """Получение текущего вопроса"""
-    question = Question.get_question(Session, current_index + 1)
+    question = await Question.get_question(Session, current_index + 1)
     opts = [
         question.answer0,
         question.answer1,
@@ -113,7 +113,7 @@ async def new_quiz(message):
         user_id=user_id,
         level=0,
     )
-    user_state.set_score(Session)
+    await user_state.set_score(Session)
     await get_question(message, 0)
 
 
@@ -127,7 +127,7 @@ async def cmd_quiz(message: types.Message):
 
 async def main():
     global TOTAL_QUIZ_QUESTIONS
-    TOTAL_QUIZ_QUESTIONS = Question.get_total_questions(Session)
+    TOTAL_QUIZ_QUESTIONS = await Question.get_total_questions(Session)
 
     # Запуск процесса поллинга новых апдейтов
     await dp.start_polling(bot)

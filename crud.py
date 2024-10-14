@@ -3,44 +3,49 @@ from json import load
 
 from dotenv import load_dotenv
 
-from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy.orm import declarative_base, sessionmaker
-from sqlalchemy import create_engine, func, select
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncAttrs, create_async_engine
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
 load_dotenv()
-Base = declarative_base()
-engine = create_engine(getenv('DB_ENGINE'), echo=False)
-Session = sessionmaker(engine)
+
+engine = create_async_engine(getenv('DB_ENGINE'), echo=False)
+Session = async_sessionmaker(engine)
+
+
+class Base(DeclarativeBase, AsyncAttrs):
+    pass
 
 
 class Question(Base):
     __tablename__ = 'quiz_question'
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    question: Mapped[str] = mapped_column()
-    answer0: Mapped[str] = mapped_column()
-    answer1: Mapped[str] = mapped_column()
-    answer2: Mapped[str] = mapped_column()
-    answer3: Mapped[str] = mapped_column()
-    correct_id: Mapped[int] = mapped_column()
+    question: Mapped[str]
+    answer0: Mapped[str]
+    answer1: Mapped[str]
+    answer2: Mapped[str]
+    answer3: Mapped[str]
+    correct_id: Mapped[int]
 
     @classmethod
-    def get_total_questions(cls, Session):
-        with Session() as session:
-            row_count = session.scalar(select(func.count(cls.id)))
+    async def get_total_questions(cls, Session):
+        async with Session() as session:
+            row_count = await session.scalar(select(func.count(cls.id)))
         return row_count
 
     @classmethod
-    def get_question(cls, Session, question_id):
-        return Session().get(cls, question_id)
+    async def get_question(cls, Session, question_id):
+        return await Session().get(cls, question_id)
 
     @classmethod
-    def fill_questions(cls, Session):
+    async def fill_questions(cls, Session):
         with open(getenv('QUSETIONS_FILENAME'), encoding='utf-8') as file:
             quiz_data = load(file)
-        with Session.begin() as session:
-            for current_question in quiz_data:
-                db_question = cls(
+        async with Session.begin() as session:
+            session.add_all([
+                cls(
                     question=current_question['question'],
                     answer0=current_question['options'][0],
                     answer1=current_question['options'][1],
@@ -48,7 +53,8 @@ class Question(Base):
                     answer3=current_question['options'][3],
                     correct_id=current_question['correct_option']
                 )
-                session.add(db_question)
+                for current_question in quiz_data
+            ])
 
 
 class Score(Base):
@@ -59,15 +65,20 @@ class Score(Base):
     score: Mapped[int] = mapped_column(default=0)
 
     @classmethod
-    def get_score(cls, Session, user_id):
-        return Session().get(cls, user_id)
+    async def get_score(cls, Session, user_id):
+        return await Session().get(cls, user_id)
 
-    def set_score(self, Session):
-        with Session.begin() as session:
+    async def set_score(self, Session):
+        async with Session.begin() as session:
             session.merge(self)
 
 
+async def first_run():
+    """create and fill tables for first run"""
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    await Question.fill_questions(Session)
+
 if __name__ == '__main__':
-    # create tables for first run
-    Base.metadata.create_all(engine)
-    Question.fill_questions(Session)
+    from asyncio import run
+    run(first_run())
