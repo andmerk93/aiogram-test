@@ -11,6 +11,8 @@
 ## Требования:
 - Python 3 
 - aiogram 3.13
+- aiosqlite 0.20
+- SQLAlchemy 2.0.35
 - python-dotenv
 - и их зависимости (указано в `requirements.txt`)
 

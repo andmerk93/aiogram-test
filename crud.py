@@ -5,8 +5,8 @@ from dotenv import load_dotenv
 
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncAttrs, create_async_engine
-from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncAttrs, async_sessionmaker
+from sqlalchemy.ext.asyncio import create_async_engine
 
 load_dotenv()
 
