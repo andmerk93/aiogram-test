@@ -9,8 +9,7 @@ from aiogram import F
 
 from dotenv import load_dotenv
 
-from crud import Session, Score, get_quiz_data
-from crud import get_score, set_score
+from crud import Session, Score, Question
 
 
 load_dotenv()
@@ -26,9 +25,6 @@ bot = Bot(token=API_TOKEN)
 
 # Диспетчер
 dp = Dispatcher()
-
-# Структура квиза
-QUIZ_DATA = []
 
 
 def generate_options_keyboard(answer_options):
@@ -52,13 +48,16 @@ async def answer(callback: types.CallbackQuery):
         reply_markup=None
     )
 
-    # Получение текущего вопроса из словаря состояний пользователя
-    current_score = get_score(Session, user_id=callback.from_user.id)
-    current_question_id = current_score.level
+    current_score = Score.get_score(Session, user_id=callback.from_user.id)
+
+    current_question_id = current_score.level + 1
+    current_question = Question.get_question(Session, current_question_id)
+
     current_answer_id = int(callback.data)
-    current_answer = QUIZ_DATA[current_question_id]['options'][current_answer_id]
-    correct_anwser_id = QUIZ_DATA[current_question_id]['correct_option']
-    correct_answer = QUIZ_DATA[current_question_id]['options'][correct_anwser_id]
+    current_answer = getattr(current_question, f'answer{current_answer_id}')
+
+    correct_anwser_id = current_question.correct_id
+    correct_answer = getattr(current_question, f'answer{correct_anwser_id}')
 
     if current_answer_id == correct_anwser_id:
         current_score.score += 1
@@ -69,11 +68,11 @@ async def answer(callback: types.CallbackQuery):
             f"Правильный ответ: {correct_answer}"
         )
 
-    # Обновление номера текущего вопроса в базе данных
+    # Обновление номера текущего вопроса
     current_score.level += 1
-    set_score(Session, current_score)
-    if current_score.level < len(QUIZ_DATA):
-        await get_question(callback.message, callback.from_user.id)
+    current_score.set_score(Session)
+    if current_score.level < TOTAL_QUIZ_QUESTIONS:
+        await get_question(callback.message, current_score.level)
     else:
         await callback.message.answer(
             "Это был последний вопрос. Квиз завершен! \n"
@@ -92,13 +91,18 @@ async def cmd_start(message: types.Message):
     )
 
 
-async def get_question(message, user_id):
-    """Получение текущего вопроса из словаря состояний пользователя"""
-    current_question_index = get_score(Session, user_id).level
-    opts = QUIZ_DATA[current_question_index]['options']
+async def get_question(message, current_index):
+    """Получение текущего вопроса"""
+    question = Question.get_question(Session, current_index + 1)
+    opts = [
+        question.answer0,
+        question.answer1,
+        question.answer2,
+        question.answer3,
+    ]
     kb = generate_options_keyboard(opts)
     await message.answer(
-        f"{QUIZ_DATA[current_question_index]['question']}",
+        question.question,
         reply_markup=kb
     )
 
@@ -109,8 +113,8 @@ async def new_quiz(message):
         user_id=user_id,
         level=0,
     )
-    set_score(Session, user_state)
-    await get_question(message, user_id)
+    user_state.set_score(Session)
+    await get_question(message, 0)
 
 
 @dp.message(F.text == "Начать игру")
@@ -122,8 +126,8 @@ async def cmd_quiz(message: types.Message):
 
 
 async def main():
-    global QUIZ_DATA
-    QUIZ_DATA = get_quiz_data(Session)
+    global TOTAL_QUIZ_QUESTIONS
+    TOTAL_QUIZ_QUESTIONS = Question.get_total_questions(Session)
 
     # Запуск процесса поллинга новых апдейтов
     await dp.start_polling(bot)
