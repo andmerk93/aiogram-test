@@ -2,7 +2,7 @@ import asyncio
 from os import getenv
 # import logging
 
-from aiogram import Bot, Dispatcher, types
+from aiogram import Bot, Dispatcher, Router, types
 from aiogram.filters.command import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 from aiogram import F
@@ -26,6 +26,10 @@ bot = Bot(token=API_TOKEN)
 # Диспетчер
 dp = Dispatcher()
 
+router = Router()
+
+dp.include_router(router)
+
 
 def generate_options_keyboard(answer_options):
     builder = InlineKeyboardBuilder()
@@ -40,7 +44,7 @@ def generate_options_keyboard(answer_options):
     return builder.as_markup()
 
 
-@dp.callback_query(F.data.in_('0123'))
+@router.callback_query(F.data.in_('0123'))
 async def answer(callback: types.CallbackQuery):
     await callback.bot.edit_message_reply_markup(
         chat_id=callback.from_user.id,
@@ -80,7 +84,7 @@ async def answer(callback: types.CallbackQuery):
         )
 
 
-@dp.message(Command("start"))
+@router.message(Command("start"))
 async def cmd_start(message: types.Message):
     """Хэндлер на команду /start"""
     builder = ReplyKeyboardBuilder()
@@ -117,8 +121,8 @@ async def new_quiz(message):
     await get_question(message, 0)
 
 
-@dp.message(F.text == "Начать игру")
-@dp.message(Command("quiz"))
+@router.message(F.text == "Начать игру")
+@router.message(Command("quiz"))
 async def cmd_quiz(message: types.Message):
     """Хэндлер на команду /quiz"""
     await message.answer("Давайте начнем квиз!")

@@ -70,7 +70,7 @@ class Score(Base):
 
     async def set_score(self, Session):
         async with Session.begin() as session:
-            session.merge(self)
+            await session.merge(self)
 
 
 async def first_run():
