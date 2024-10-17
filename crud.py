@@ -1,14 +1,10 @@
 from os import getenv
 from json import load
 
-from dotenv import load_dotenv
-
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncAttrs, async_sessionmaker
 from sqlalchemy.ext.asyncio import create_async_engine
-
-load_dotenv()
 
 engine = create_async_engine(getenv('DB_ENGINE'), echo=False)
 Session = async_sessionmaker(engine)
@@ -73,12 +69,12 @@ class Score(Base):
             await session.merge(self)
 
 
-async def first_run():
+async def first_run(*args):
     """create and fill tables for first run"""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     await Question.fill_questions(Session)
-
-if __name__ == '__main__':
-    from asyncio import run
-    run(first_run())
+    return {
+        'statusCode': 200,
+        'body': 'Base is filled',
+    }

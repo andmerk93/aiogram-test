@@ -1,18 +1,14 @@
-import asyncio
+from asyncio import run
 from os import getenv
-# import logging
+from json import loads
 
 from aiogram import Bot, Dispatcher, Router, types
 from aiogram.filters.command import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 from aiogram import F
 
-from dotenv import load_dotenv
-
 from crud import Session, Score, Question
 
-
-load_dotenv()
 
 # Включаем логирование, чтобы не пропустить важные сообщения
 # logging.basicConfig(level=logging.INFO)
@@ -29,6 +25,8 @@ dp = Dispatcher()
 router = Router()
 
 dp.include_router(router)
+
+TOTAL_QUIZ_QUESTIONS = run(Question.get_total_questions(Session))
 
 
 def generate_options_keyboard(answer_options):
@@ -129,12 +127,17 @@ async def cmd_quiz(message: types.Message):
     await new_quiz(message)
 
 
-async def main():
-    global TOTAL_QUIZ_QUESTIONS
-    TOTAL_QUIZ_QUESTIONS = await Question.get_total_questions(Session)
+async def process_event(event):
+    update = types.Update.model_validate(
+        loads(event['body']),
+        context={"bot": bot}
+    )
+    await dp.feed_update(bot, update)
 
-    # Запуск процесса поллинга новых апдейтов
-    await dp.start_polling(bot)
 
-if __name__ == "__main__":
-    asyncio.run(main())
+async def webhook(event, context):
+    if event['httpMethod'] == 'POST':
+        await process_event(event)
+        return {'statusCode': 200, 'body': 'ok'}
+
+    return {'statusCode': 405}
