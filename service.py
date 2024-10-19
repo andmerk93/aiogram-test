@@ -1,6 +1,6 @@
-from asyncio import run
 from os import getenv
 from json import loads
+import logging
 
 from aiogram import Bot, Dispatcher, Router, types
 from aiogram.filters.command import Command
@@ -11,7 +11,7 @@ from crud import Session, Score, Question
 
 
 # Включаем логирование, чтобы не пропустить важные сообщения
-# logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO)
 
 # Токен, который вы получили от BotFather
 API_TOKEN = getenv('API_TOKEN')
@@ -25,8 +25,6 @@ dp = Dispatcher()
 router = Router()
 
 dp.include_router(router)
-
-TOTAL_QUIZ_QUESTIONS = run(Question.get_total_questions(Session))
 
 
 def generate_options_keyboard(answer_options):
@@ -128,11 +126,16 @@ async def cmd_quiz(message: types.Message):
 
 
 async def process_event(event):
-    update = types.Update.model_validate(
-        loads(event['body']),
-        context={"bot": bot}
-    )
-    await dp.feed_update(bot, update)
+    try:
+        update = types.Update.model_validate(
+            loads(event['body']),
+            context={"bot": bot}
+        )
+        global TOTAL_QUIZ_QUESTIONS
+        TOTAL_QUIZ_QUESTIONS = await Question.get_total_questions(Session)
+        await dp.feed_update(bot, update)
+    except Exception as exc:
+        logging.error(f'Error: {exc}')
 
 
 async def webhook(event, context):

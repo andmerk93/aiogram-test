@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncAttrs, async_sessionmaker
 from sqlalchemy.ext.asyncio import create_async_engine
 
-engine = create_async_engine(getenv('DB_ENGINE'), echo=False)
+engine = create_async_engine(getenv('DB_ENGINE'), echo=True)
 Session = async_sessionmaker(engine)
 
 
